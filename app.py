@@ -11,7 +11,7 @@ import numpy as np
 app = Flask(__name__)
 
 # Загрузка локальной модели
-model = YOLO('yolov8n-worldv2.pt')  # или yolov8n.pt
+model = YOLO('yolov8n.pt')  # или yolov8n.pt
 
 # Если используете world-версию, установите классы
 if 'world' in str(type(model)):
