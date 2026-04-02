@@ -2,13 +2,13 @@ from flask import Flask, request, jsonify
 from ultralytics import YOLO
 import cv2
 import numpy as np
+import os
 
 app = Flask(__name__)
 
-# Загружаем модель (можно заменить на yolov8n-worldv2.pt для скорости)
+# Загружаем модель
 model = YOLO('yolov8l-worldv2.pt')
 
-# ⚠️ ВАШ СПИСОК ПРОМПТОВ (скопируйте из waste_classifier.py)
 WORLD_CLASSES = [
     "plastic bottle, transparent, with cap, cylindrical shape, PET",
     "plastic bottle, crushed, empty, beverage container, recyclable",
@@ -58,4 +58,5 @@ def detect():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
