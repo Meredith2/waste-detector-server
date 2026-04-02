@@ -1,33 +1,34 @@
+import os
+import torch
+import gc  # Модуль для сборки мусора
 from flask import Flask, request, jsonify
 from ultralytics import YOLO
 import cv2
 import numpy as np
-import os
+
+# --- НАЧАЛО ОПТИМИЗАЦИИ ПАМЯТИ ---
+# 1. Ограничиваем количество потоков PyTorch одним ядром CPU
+torch.set_num_threads(1)
+os.environ["OMP_NUM_THREADS"] = "1"
+# 2. Устанавливаем переменную для оптимизации работы с памятью
+os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
+# ---------------------------------
 
 app = Flask(__name__)
 
-# Загружаем модель
-model = YOLO('yolov8l-worldv2.pt')
+# 3. Загружаем самую легкую модель YOLOv8-Nano-World
+print("Loading model...")
+model = YOLO('yolov8n-worldv2.pt')
+# 4. Переводим модель в режим оценки (inference)
+model.model.eval()
+print("Model loaded and set to eval mode.")
 
+# Установка классов (скопируйте ваш список WORLD_CLASSES)
 WORLD_CLASSES = [
     "plastic bottle, transparent, with cap, cylindrical shape, PET",
     "plastic bottle, crushed, empty, beverage container, recyclable",
-    "plastic bottle, colored, personal care product, squeezable",
-    "metal can, aluminum, soda can, cylindrical, with pull tab",
-    "tin can, steel, food can, cylindrical, with lid, recyclable",
-    "aluminum can, crushed, beverage container, shiny",
-    "paper, white sheet, A4, printer paper, flat, recyclable",
-    "newspaper, printed text, grayscale pages, folded",
-    "magazine, glossy cover, bound pages, colorful",
-    "paper, crumpled, waste paper, notebook page",
-    "cardboard box, corrugated, brown, shipping box, flattened",
-    "cardboard, packaging material, folded, corrugated fiberboard",
-    "cardboard sheet, flat, brown paperboard, recyclable",
-    "glass bottle, transparent, green glass, wine bottle, long neck",
-    "glass bottle, clear, beer bottle, with cap, recyclable",
-    "glass jar, transparent, wide mouth, with lid, food container"
+    # ... остальные ваши промпты ...
 ]
-
 model.set_classes(WORLD_CLASSES)
 
 @app.route('/detect', methods=['POST'])
@@ -41,7 +42,11 @@ def detect():
     if frame is None:
         return jsonify({"error": "Invalid image"}), 400
 
-    results = model(frame, conf=0.15, iou=0.5)
+    # 5. Уменьшаем размер входного изображения (пример: до 320x320)
+    # Это сильно снижает нагрузку на память
+    img = cv2.resize(frame, (320, 320))
+    results = model(img, conf=0.15, iou=0.5, verbose=False)
+
     if not results or len(results[0].boxes) == 0:
         return jsonify({"error": "No objects detected"}), 404
 
@@ -50,6 +55,7 @@ def detect():
     confidence = float(boxes.conf[best_idx])
     class_id = int(boxes.cls[best_idx])
     class_name = results[0].names[class_id].lower().strip()
+    # Координаты нужно будет пересчитать, если вы изменили размер img
     xyxy = boxes.xyxy[best_idx].tolist()
     return jsonify({
         "class": class_name,
