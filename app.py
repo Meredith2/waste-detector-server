@@ -1,35 +1,24 @@
 import os
 import torch
-import gc  # Модуль для сборки мусора
+torch.set_num_threads(1)
+os.environ["OMP_NUM_THREADS"] = "1"
+
 from flask import Flask, request, jsonify
 from ultralytics import YOLO
 import cv2
 import numpy as np
 
-# --- НАЧАЛО ОПТИМИЗАЦИИ ПАМЯТИ ---
-# 1. Ограничиваем количество потоков PyTorch одним ядром CPU
-torch.set_num_threads(1)
-os.environ["OMP_NUM_THREADS"] = "1"
-# 2. Устанавливаем переменную для оптимизации работы с памятью
-os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
-# ---------------------------------
-
 app = Flask(__name__)
 
-# 3. Загружаем самую легкую модель YOLOv8-Nano-World
-print("Loading model...")
-model = YOLO('yolov8n-worldv2.pt')
-# 4. Переводим модель в режим оценки (inference)
-model.model.eval()
-print("Model loaded and set to eval mode.")
+# Загрузка локальной модели
+model = YOLO('yolov8n-worldv2.pt')  # или yolov8n.pt
 
-# Установка классов (скопируйте ваш список WORLD_CLASSES)
-WORLD_CLASSES = [
-    "plastic bottle, transparent, with cap, cylindrical shape, PET",
-    "plastic bottle, crushed, empty, beverage container, recyclable",
-    # ... остальные ваши промпты ...
-]
-model.set_classes(WORLD_CLASSES)
+# Если используете world-версию, установите классы
+if 'world' in str(type(model)):
+    WORLD_CLASSES = [
+        "plastic bottle", "metal can", "paper", "cardboard", "glass bottle"
+    ]
+    model.set_classes(WORLD_CLASSES)
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -42,8 +31,7 @@ def detect():
     if frame is None:
         return jsonify({"error": "Invalid image"}), 400
 
-    # 5. Уменьшаем размер входного изображения (пример: до 320x320)
-    # Это сильно снижает нагрузку на память
+    # Уменьшаем размер для экономии памяти
     img = cv2.resize(frame, (320, 320))
     results = model(img, conf=0.15, iou=0.5, verbose=False)
 
@@ -55,7 +43,6 @@ def detect():
     confidence = float(boxes.conf[best_idx])
     class_id = int(boxes.cls[best_idx])
     class_name = results[0].names[class_id].lower().strip()
-    # Координаты нужно будет пересчитать, если вы изменили размер img
     xyxy = boxes.xyxy[best_idx].tolist()
     return jsonify({
         "class": class_name,
@@ -65,4 +52,4 @@ def detect():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, threaded=False)
