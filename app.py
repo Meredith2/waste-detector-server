@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 torch.set_num_threads(1)
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -10,8 +11,22 @@ import numpy as np
 
 app = Flask(__name__)
 
+# Загружаем модель с fallback
+model = None
+try:
+    print("Attempting to load OpenVINO model from 'yolov8n_openvino_model'...")
+    model = YOLO('yolov8n_openvino_model', task='detect')
+    print("✅ OpenVINO model loaded successfully")
+except Exception as e:
+    print(f"⚠️ OpenVINO model failed: {e}")
+    print("🔄 Falling back to PyTorch model (yolov8n.pt)")
+    try:
+        model = YOLO('yolov8n.pt', task='detect')
+        print("✅ PyTorch model loaded")
+    except Exception as e2:
+        print(f"❌ Failed to load any model: {e2}")
+        sys.exit(1)
 
-model = YOLO('yolov8n_openvino_model')
 @app.route('/detect', methods=['POST'])
 def detect():
     if 'image' not in request.files:
