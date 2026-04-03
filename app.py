@@ -10,16 +10,8 @@ import numpy as np
 
 app = Flask(__name__)
 
-# Загрузка локальной модели
-model = YOLO('yolov8n.pt')  # или yolov8n.pt
 
-# Если используете world-версию, установите классы
-if 'world' in str(type(model)):
-    WORLD_CLASSES = [
-        "plastic bottle", "metal can", "paper", "cardboard", "glass bottle"
-    ]
-    model.set_classes(WORLD_CLASSES)
-
+model = YOLO('yolov8n_openvino_model')
 @app.route('/detect', methods=['POST'])
 def detect():
     if 'image' not in request.files:
@@ -31,7 +23,6 @@ def detect():
     if frame is None:
         return jsonify({"error": "Invalid image"}), 400
 
-    # Уменьшаем размер для экономии памяти
     img = cv2.resize(frame, (320, 320))
     results = model(img, conf=0.15, iou=0.5, verbose=False)
 
@@ -49,6 +40,10 @@ def detect():
         "confidence": confidence,
         "bbox": xyxy
     })
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "OK", 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
