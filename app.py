@@ -33,7 +33,7 @@ WORLD_CLASSES = [
 ]
 
 # Укажите путь к папке с OpenVINO моделью (должна быть в корне репозитория)
-MODEL_PATH = 'yolov8n_openvino_model'
+MODEL_PATH = 'yolov8s-worldv2_openvino_model'
 
 try:
     print(f"Loading model from {MODEL_PATH}...")
