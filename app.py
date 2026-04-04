@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 import torch
 torch.set_num_threads(1)
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -11,24 +12,42 @@ import numpy as np
 
 app = Flask(__name__)
 
-# Загружаем модель с fallback
+# Ваши промпты (должны быть точно такими же, как при экспорте модели)
+WORLD_CLASSES = [
+    "plastic bottle, transparent, with cap, cylindrical shape, PET",
+    "plastic bottle, crushed, empty, beverage container, recyclable",
+    "plastic bottle, colored, personal care product, squeezable",
+    "metal can, aluminum, soda can, cylindrical, with pull tab",
+    "tin can, steel, food can, cylindrical, with lid, recyclable",
+    "aluminum can, crushed, beverage container, shiny",
+    "paper, white sheet, A4, printer paper, flat, recyclable",
+    "newspaper, printed text, grayscale pages, folded",
+    "magazine, glossy cover, bound pages, colorful",
+    "paper, crumpled, waste paper, notebook page",
+    "cardboard box, corrugated, brown, shipping box, flattened",
+    "cardboard, packaging material, folded, corrugated fiberboard",
+    "cardboard sheet, flat, brown paperboard, recyclable",
+    "glass bottle, transparent, green glass, wine bottle, long neck",
+    "glass bottle, clear, beer bottle, with cap, recyclable",
+    "glass jar, transparent, wide mouth, with lid, food container"
+]
+
+# Загрузка OpenVINO модели
 model = None
 try:
-    print("Attempting to load OpenVINO model from 'yolov8n_openvino_model'...")
-    model = YOLO('yolov8n_openvino_model', task='detect')
+    print("Loading OpenVINO model from 'yolov8m-worldv2_openvino_model'...")
+    model = YOLO('yolov8m-worldv2_openvino_model', task='detect')
+    model.set_classes(WORLD_CLASSES)
     print("✅ OpenVINO model loaded successfully")
 except Exception as e:
-    print(f"⚠️ OpenVINO model failed: {e}")
-    print("🔄 Falling back to PyTorch model (yolov8n.pt)")
-    try:
-        model = YOLO('yolov8n.pt', task='detect')
-        print("✅ PyTorch model loaded")
-    except Exception as e2:
-        print(f"❌ Failed to load any model: {e2}")
-        sys.exit(1)
+    print(f"❌ Failed to load OpenVINO model: {e}")
+    sys.exit(1)  # Не запускаем сервер без модели
 
 @app.route('/detect', methods=['POST'])
 def detect():
+    # Принудительная сборка мусора перед обработкой запроса
+    gc.collect()
+
     if 'image' not in request.files:
         return jsonify({"error": "No image file"}), 400
     file = request.files['image']
@@ -38,6 +57,7 @@ def detect():
     if frame is None:
         return jsonify({"error": "Invalid image"}), 400
 
+    # Уменьшаем размер для ускорения и экономии памяти
     img = cv2.resize(frame, (320, 320))
     results = model(img, conf=0.15, iou=0.5, verbose=False)
 
